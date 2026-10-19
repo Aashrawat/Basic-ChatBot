@@ -1,0 +1,14 @@
+python-dotenv
+langchain
+langchain-community
+langchain-openai
+langchain-groq
+langchain-google-genai
+openai
+groq
+google-genai
+langchain_huggingface
+transformers
+torch
+sentence-transformers
+streamlit
