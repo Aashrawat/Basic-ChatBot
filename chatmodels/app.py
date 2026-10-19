@@ -4,7 +4,42 @@ import streamlit as st
 from langchain_huggingface import ChatHuggingFace, HuggingFacePipeline
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 
-st.set_page_config(page_title="Chatbot", page_icon="💬")
+st.set_page_config(page_title="Mood Chatbot", page_icon="💬", layout="centered")
+
+MOODS = {
+    "Happy": {
+        "emoji": "😄",
+        "color": "#f5b301",
+        "background": "linear-gradient(135deg, #fff9e6 0%, #ffe9a8 100%)",
+        "prompt": (
+            "You are a cheerful, upbeat assistant. Answer helpfully with lots of "
+            "enthusiasm, positivity and the occasional emoji. Keep answers short."
+        ),
+    },
+    "Angry": {
+        "emoji": "😠",
+        "color": "#d7263d",
+        "background": "linear-gradient(135deg, #ffecec 0%, #ffb3b3 100%)",
+        "prompt": (
+            "You are a grumpy, irritated assistant. You still answer the question "
+            "correctly, but you complain, act annoyed and are blunt. Never be "
+            "hateful or offensive. Keep answers short."
+        ),
+    },
+    "Sad": {
+        "emoji": "😢",
+        "color": "#3a6ea5",
+        "background": "linear-gradient(135deg, #eef4fb 0%, #b9d0ea 100%)",
+        "prompt": (
+            "You are a gloomy, melancholic assistant. You still answer the question "
+            "correctly, but you sound sad, sigh a lot and see the downside of "
+            "everything. Keep answers short."
+        ),
+    },
+}
+
+# Only the most recent messages are sent to the model to fit TinyLlama's small context
+HISTORY_LIMIT = 6
 
 
 # Streamlit reruns the script on every interaction, so the model is cached
@@ -15,58 +50,98 @@ def load_chat_model():
         model_id="TinyLlama/TinyLlama-1.1B-Chat-v1.0",
         task="text-generation",
         pipeline_kwargs=dict(
-            max_new_tokens=512,
-            do_sample=False,
-            repetition_penalty=1.03,
+            max_new_tokens=256,
+            do_sample=True,
+            temperature=0.7,
+            repetition_penalty=1.1,
+            return_full_text=False,
         ),
     )
     return ChatHuggingFace(llm=llm)
 
 
-chat_model = load_chat_model()
-
-# Keep the message history across reruns
 if "messages" not in st.session_state:
-    st.session_state.messages = [
-        SystemMessage(
-            content="You are a helpful assistant that can answer questions and help with tasks."
-        ),
-    ]
-if "ended" not in st.session_state:
-    st.session_state.ended = False
+    st.session_state.messages = []
 
-st.title("💬 Chatbot")
-st.caption("Welcome to the chatbot. Type 0 to exit the application.")
+with st.sidebar:
+    st.header("⚙️ Settings")
+    mood_name = st.radio(
+        "Choose the bot's mood",
+        list(MOODS),
+        format_func=lambda name: f"{MOODS[name]['emoji']} {name}",
+    )
+    st.divider()
+    if st.button("🗑️ Clear chat", use_container_width=True):
+        st.session_state.messages = []
+        st.rerun()
+    st.caption("Runs locally on TinyLlama 1.1B. Free, no API key needed.")
 
-# Render previous messages
+mood = MOODS[mood_name]
+
+st.markdown(
+    f"""
+    <style>
+    .stApp {{
+        background: {mood["background"]};
+    }}
+    .mood-title {{
+        text-align: center;
+        color: {mood["color"]};
+        font-size: 2.6rem;
+        font-weight: 800;
+        margin-bottom: 0;
+    }}
+    .mood-subtitle {{
+        text-align: center;
+        color: #555;
+        margin-top: 0.2rem;
+        margin-bottom: 1.5rem;
+    }}
+    [data-testid="stChatMessage"] {{
+        background: rgba(255, 255, 255, 0.75);
+        border-radius: 16px;
+        padding: 0.75rem 1rem;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+    }}
+    [data-testid="stChatInput"] textarea {{
+        border: 2px solid {mood["color"]};
+    }}
+    </style>
+    <p class="mood-title">{mood["emoji"]} {mood_name} Bot</p>
+    <p class="mood-subtitle">Change my mood from the sidebar and see how I respond.</p>
+    """,
+    unsafe_allow_html=True,
+)
+
+with st.spinner("Loading model..."):
+    chat_model = load_chat_model()
+
 for msg in st.session_state.messages:
     if isinstance(msg, HumanMessage):
-        with st.chat_message("user"):
+        with st.chat_message("user", avatar="🧑"):
             st.markdown(msg.content)
-    elif isinstance(msg, AIMessage):
-        with st.chat_message("assistant"):
+    else:
+        with st.chat_message("assistant", avatar=msg.additional_kwargs.get("emoji", "🤖")):
             st.markdown(msg.content)
 
-# Exit state (equivalent of typing 0 in the console version)
-if st.session_state.ended:
-    st.info("Chat ended. Refresh the page to start a new chat.")
-    st.stop()
+if not st.session_state.messages:
+    st.info(f"Say hi to the {mood_name.lower()} bot to get started!")
 
-prompt = st.chat_input("You:")
+prompt = st.chat_input(f"Message the {mood_name.lower()} bot...")
 
 if prompt:
     st.session_state.messages.append(HumanMessage(content=prompt))
-
-    if prompt == "0":
-        st.session_state.ended = True
-        st.rerun()
-
-    with st.chat_message("user"):
+    with st.chat_message("user", avatar="🧑"):
         st.markdown(prompt)
 
-    with st.chat_message("assistant"):
-        with st.spinner("Thinking..."):
-            response = chat_model.invoke(prompt)
-        st.markdown(response.content)
+    conversation = [SystemMessage(content=mood["prompt"])] + st.session_state.messages[-HISTORY_LIMIT:]
 
-    st.session_state.messages.append(AIMessage(content=response.content))
+    with st.chat_message("assistant", avatar=mood["emoji"]):
+        with st.spinner("Thinking..."):
+            response = chat_model.invoke(conversation)
+        reply = response.content.strip()
+        st.markdown(reply)
+
+    st.session_state.messages.append(
+        AIMessage(content=reply, additional_kwargs={"emoji": mood["emoji"]})
+    )
