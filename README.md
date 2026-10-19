@@ -2,6 +2,8 @@
 
 A beginner Generative AI project built with [LangChain](https://python.langchain.com/). It includes a free chatbot that runs locally with a Streamlit web interface, plus examples of using hosted chat models and embedding models.
 
+**Live demo:** [aashrawat-basic-chatbot-chatmodelsapp-9uexc7.streamlit.app](https://aashrawat-basic-chatbot-chatmodelsapp-9uexc7.streamlit.app/)
+
 ## Project structure
 
 ```
