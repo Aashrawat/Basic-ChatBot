@@ -44,9 +44,10 @@ requirements.txt
 
 ## Run the chatbot
 
+From the project root (so the dark theme in `.streamlit/config.toml` is applied):
+
 ```powershell
-cd chatmodels
-streamlit run app.py
+streamlit run chatmodels/app.py
 ```
 
 Then open http://localhost:8501 in your browser. The first run downloads the TinyLlama model (about 2 GB). Type `0` to end the chat.
